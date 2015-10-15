@@ -1,0 +1,17 @@
+{
+    "contents" : "# set global options\noptions(digits=3)\n\n# Add required libraries\nlibrary(igraph)\nlibrary(lattice)\nlibrary(Matrix)\nlibrary(Hmisc)\nlibrary(MASS)\nlibrary(ggplot2)\nlibrary(gridExtra)\nlibrary(lsa)\nlibrary(tm)\n\n# load required sources\nsource(\"utils.R\")\n\n# load concept-sim data set\nconcept_sim <- read.csv(file=\"conceptsim.csv\", sep=\",\", check.names=F)\n\n# load the local WordNet graph\ngraph <- read.graph(\"G.net\", format=\"pajek\")\nV(graph)$name <- V(graph)$id\n\n# build data matrix\nD <- as.matrix(get.adjacency(graph, names = T))\nu <- as.character(unique(unlist(concept_sim[c(\"id1\",\"id2\")])))\nD <- D[u,]\n\n# create a local similarity frame <label,gold,alg>\nsim <- getlocalsimframe(feature_matrix=D, df_sim_pairs=concept_sim)\n\n# compute baseline correlation: 0.41 (see Table R_overlap in Table 3)\ncorrelation(dsim=sim, rtype=\"spearman\")\n\n# ----------------------------------------------------------\n# extract all maximal cliques\nl <- maximal.cliques(graph=graph, min=2, max=NULL)\n\n# create an empty Clique Kernel <Concept,Clique> (Kernel Matrix)\nK <- data.frame(matrix(0, nrow = ncol(D), ncol = length(l)),\n                 row.names=colnames(D))\nC <- character()\nfor(c in l){\n  C <- append(C, paste(V(graph)[c]$id, collapse=\":\"))\n}\nnames(K) <- C\n\n# fill Kernel Matrix\nvocab <- row.names(K)\nfor(c in l){\n  clique <- V(graph)[c]$id\n  colname <- paste(V(graph)[c]$id, collapse=\":\")\n  for(t in clique){\n    if(t %in% vocab)\n      K[t,colname] <- K[t,colname] + 1\n  }\n}\n\n# calculate different kernel matrixes\nkm <- K\n\n# skip empty cliques: no empty clique\nnotempty <- c()\nfor(colname in names(km)){\n  if(length(which(km[,colname] > 0)) > 1)\n    notempty <- append(notempty, colname)\n}\nkm <- km[,notempty]\n\n# IDF normalization of the kernel matrix: 0.61 (be patient, it takes long time!)\nk <- length(names(km))\nfor(rowname in row.names(km)){\n  idf <- 1 + length(which(km[rowname,] > 0))\n  km[rowname,] <- km[rowname,] * log10(k/idf)\n  if(idf == 1)\n    print(rowname)\n}\n\n# building the feature matrix using the kernel matrix\nFM <- as.matrix(D) %*% as.matrix(km)\n\n# IDF normalization of the feature matrix: 0.61 (see Table CSK in Table 3)\nC <- nrow(FM)\nfor(colname in colnames(FM)){\n  idf <- 1 + length(which(FM[,colname] > 0))\n  FM[,colname] <- FM[,colname] * log10(C/idf)\n}\n\n# create a local similarity frame <label,gold,alg>\nfsim <- getlocalsimframe(feature_matrix=FM, df_sim_pairs=concept_sim)\n\n# compute correlation\ncorrelation(dsim=fsim, rtype=\"spearman\")\n",
+    "created" : 1444860225786.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4189528584",
+    "id" : "D01505DF",
+    "lastKnownWriteTime" : 1444858240,
+    "path" : "~/projects/clique-based semantic kernel/conceptsimilarity.r",
+    "project_path" : "conceptsimilarity.r",
+    "properties" : {
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "type" : "r_source"
+}

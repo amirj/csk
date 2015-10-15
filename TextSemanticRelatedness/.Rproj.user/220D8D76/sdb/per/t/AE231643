@@ -1,0 +1,17 @@
+{
+    "contents" : "# set global options\noptions(digits=3)\n\n# Add required libraries\nlibrary(igraph)\nlibrary(lattice)\nlibrary(Matrix)\nlibrary(Hmisc)\nlibrary(MASS)\nlibrary(ggplot2)\nlibrary(gridExtra)\nlibrary(lsa)\nlibrary(proxy)\nlibrary(tm)\n\n# load required sources\nsource(\"utils.R\")\n\n# create BOW (term-doc matrix)\ntxt <- system.file(\"texts\", \"lee\", package = \"tm\")\n(corpus <- Corpus(DirSource(txt, encoding = \"UTF-8\"), readerControl = list(language = \"en\")))\ncorpus <- tm_map(corpus, tolower)\ncorpus <- tm_map(corpus, removeWords, stopwords(\"english\"))\ncorpus <- tm_map(corpus, stemDocument)\ncorpus <- tm_map(corpus, stripWhitespace)\ndtm <- DocumentTermMatrix(corpus, control=list(weighting=weightTfIdf))\n\n\n# load the local feature similarity graph\ngraph <- read.graph(\"G.net\", format=\"pajek\")\n\n# load doc-concept data frame\ndoc_concept <- read.csv(file=\"doc_concept.csv\", sep=\"$\", check.names=F)\n\n# IDF normalization of doc_concept\nk <- length(row.names(doc_concept))\nfor(colname in names(doc_concept)){\n  idf <- 1 + length(which(doc_concept[,colname] > 0))\n  doc_concept[,colname] <- doc_concept[,colname] * log10(k/idf)\n}\n\n# extract all cliques\nl <- maximal.cliques(graph=graph, min=2, max=NULL)\n\n# create an empty Clique Kernel <Concept,Clique> (Kernel Matrix)\nKM <- data.frame(matrix(0, nrow = ncol(doc_concept), ncol = length(l)),\n                 row.names=colnames(doc_concept))\nC <- character()\nfor(c in l){\n  C <- append(C, paste(V(graph)[c]$id, collapse=\":\"))\n}\nnames(KM) <- C\n\n# fill Kernel Matrix (take a long time)\nvocab <- row.names(KM)\nfor(c in l){\n  clique <- V(graph)[c]$id\n  colname <- paste(V(graph)[c]$id, collapse=\":\")\n  for(t in clique){\n    if(t %in% vocab)\n      KM[t,colname] <- KM[t,colname] + 1\n  }\n}\n\n# calculate different kernel matrixes\nkm <- KM\n\n# skip empty cliques: 13k -> 2.6k: 0.63\nnotempty <- c()\nfor(colname in names(km)){\n  if(length(which(km[,colname] > 0)) > 1)\n    notempty <- append(notempty, colname)\n}\nkm <- km[,notempty]\n\n# IDF normalization of the kernel matrix: 0.67\nk <- length(names(km))\nfor(rowname in row.names(km)){\n  idf <- 1 + length(which(km[rowname,] > 0))\n  km[rowname,] <- km[rowname,] * log10(k/idf)\n  if(idf == 1)\n    print(rowname)\n}\n\n\n# building the feature matrix using the kernel matrix\nFM <- as.matrix(doc_concept) %*% as.matrix(km)\n\n# IDF normalization of the feature matrix: 0.69\nD <- nrow(FM)\nfor(colname in colnames(FM)){\n  idf <- 1 + length(which(FM[,colname] > 0))\n  FM[,colname] <- FM[,colname] * log10(D/idf)\n}\n\n\n# create a local similarity frame <gold,alg,bcos,label>\nsim <- getlocalsimframe(doc_concept, km)\n\n# compute correlation\ncorrelation(dsim=sim, rtype=\"pearson\")\n\n",
+    "created" : 1444894678198.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3644871096",
+    "id" : "AE231643",
+    "lastKnownWriteTime" : 1444910719,
+    "path" : "~/projects/csk/TextSemanticRelatedness/semanticrelatedness.R",
+    "project_path" : "semanticrelatedness.R",
+    "properties" : {
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "type" : "r_source"
+}
